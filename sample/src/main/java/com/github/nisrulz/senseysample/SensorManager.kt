@@ -24,12 +24,12 @@ import com.github.nisrulz.sensey.gesture.rotationangle.RotationAngleEvent
 import com.github.nisrulz.sensey.gesture.scoop.ScoopEvent
 import com.github.nisrulz.sensey.gesture.shake.ShakeEvent
 import com.github.nisrulz.sensey.gesture.soundlevel.SoundLevelEvent
+import com.github.nisrulz.sensey.gesture.taponback.TapOnBackEvent
+import com.github.nisrulz.sensey.gesture.wave.WaveEvent
+import com.github.nisrulz.sensey.gesture.wristtwist.WristTwistEvent
 import com.github.nisrulz.sensey.gesture.step.StepDetectorUtil
 import com.github.nisrulz.sensey.gesture.step.StepEvent
 import com.github.nisrulz.sensey.gesture.tiltdirection.TiltDirectionEvent
-import com.github.nisrulz.sensey.gesture.tiltdirection.TiltDirectionTrigger
-import com.github.nisrulz.sensey.gesture.wave.WaveEvent
-import com.github.nisrulz.sensey.gesture.wristtwist.WristTwistEvent
 import com.github.nisrulz.senseysample.utils.HapticUtil
 import java.text.DecimalFormat
 
@@ -54,6 +54,7 @@ internal class SensorManager(
         const val STEP = "Step Detector"
         const val PICKUP_DEVICE = "Pickup Device Detector"
         const val SCOOP = "Scoop Detector"
+        const val TAP_ON_BACK = "Tap On Back"
     }
 
     var resultText by mutableStateOf("Results show here")
@@ -135,7 +136,7 @@ internal class SensorManager(
             is TiltDirectionEvent.AxisYTilt -> Pair(event.direction, "Y")
             is TiltDirectionEvent.AxisZTilt -> Pair(event.direction, "Z")
         }
-        val dir = if (label == TiltDirectionTrigger.DIRECTION_CLOCKWISE) "ClockWise" else "AntiClockWise"
+        val dir = if (label == TiltDirectionEvent.Direction.CLOCKWISE) "ClockWise" else "AntiClockWise"
         setResultText("Tilt in $axis Axis: $dir", false)
     }
 
@@ -160,10 +161,14 @@ internal class SensorManager(
 
     private val scoopDispatcher: (ScoopEvent) -> Unit = withHaptic { setResultText("Scoop Gesture Detected!", false) }
 
+    private val tapOnBackDispatcher: (TapOnBackEvent) -> Unit = withHaptic {
+        setResultText("Tap On Back Detected!", false)
+    }
+
     val sensors = listOf(
         SHAKE, FLIP, ORIENTATION, PROXIMITY, LIGHT, WAVE,
         SOUND_LEVEL, MOVEMENT, CHOP, WRIST_TWIST, ROTATION_ANGLE,
-        TILT_DIRECTION, STEP, PICKUP_DEVICE, SCOOP,
+        TILT_DIRECTION, STEP, PICKUP_DEVICE, SCOOP, TAP_ON_BACK,
     )
 
     fun onSensorSelected(sensor: String, hasRecordAudioPermission: Boolean, onPermissionNeeded: () -> Unit) {
@@ -198,21 +203,22 @@ internal class SensorManager(
     private fun handleStartDetector(sensor: String, start: Boolean) {
         if (!start) {
             when (sensor) {
-                SHAKE -> Sensey.stopShakeDetection(shakeDispatcher)
-                FLIP -> Sensey.stopFlipDetection(flipDispatcher)
-                ORIENTATION -> Sensey.stopOrientationDetection(orientationDispatcher)
-                PROXIMITY -> Sensey.stopProximityDetection(proximityDispatcher)
-                LIGHT -> Sensey.stopLightDetection(lightDispatcher)
-                WAVE -> Sensey.stopWaveDetection(waveDispatcher)
+                SHAKE -> Sensey.stopShakeDetection()
+                FLIP -> Sensey.stopFlipDetection()
+                ORIENTATION -> Sensey.stopOrientationDetection()
+                PROXIMITY -> Sensey.stopProximityDetection()
+                LIGHT -> Sensey.stopLightDetection()
+                WAVE -> Sensey.stopWaveDetection()
                 SOUND_LEVEL -> Sensey.stopSoundLevelDetection()
-                MOVEMENT -> Sensey.stopMovementDetection(movementDispatcher)
-                CHOP -> Sensey.stopChopDetection(chopDispatcher)
-                WRIST_TWIST -> Sensey.stopWristTwistDetection(wristTwistDispatcher)
-                ROTATION_ANGLE -> Sensey.stopRotationAngleDetection(rotationAngleDispatcher)
-                TILT_DIRECTION -> Sensey.stopTiltDirectionDetection(tiltDirectionDispatcher)
-                STEP -> Sensey.stopStepDetection(stepDispatcher)
-                PICKUP_DEVICE -> Sensey.stopPickupDeviceDetection(pickupDeviceDispatcher)
-                SCOOP -> Sensey.stopScoopDetection(scoopDispatcher)
+                MOVEMENT -> Sensey.stopMovementDetection()
+                CHOP -> Sensey.stopChopDetection()
+                WRIST_TWIST -> Sensey.stopWristTwistDetection()
+                ROTATION_ANGLE -> Sensey.stopRotationAngleDetection()
+                TILT_DIRECTION -> Sensey.stopTiltDirectionDetection()
+                STEP -> Sensey.stopStepDetection()
+                PICKUP_DEVICE -> Sensey.stopPickupDeviceDetection()
+                SCOOP -> Sensey.stopScoopDetection()
+                TAP_ON_BACK -> Sensey.stopTapOnBackDetection()
             }
             return
         }
@@ -232,6 +238,7 @@ internal class SensorManager(
             STEP -> Sensey.startStepDetection(activity, stepDispatcher, StepDetectorUtil.MALE)
             PICKUP_DEVICE -> Sensey.startPickupDeviceDetection(pickupDeviceDispatcher)
             SCOOP -> Sensey.startScoopDetection(scoopDispatcher)
+            TAP_ON_BACK -> Sensey.startTapOnBackDetection(tapOnBackDispatcher)
         }
     }
 

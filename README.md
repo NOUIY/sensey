@@ -137,6 +137,7 @@
 | Movement | `MovementEvent.Moved`, `MovementEvent.Stationary` |
 | Orientation | `OrientationEvent.TopSideUp`, `BottomSideUp`, `LeftSideUp`, `RightSideUp` |
 | Chop | `ChopEvent.Chopped` |
+| TapOnBack | `TapOnBackEvent` |
 | WristTwist | `WristTwistEvent.Twisted` |
 | Wave | `WaveEvent.Waved` |
 | Scoop | `ScoopEvent.Scooped` |
@@ -154,18 +155,18 @@
 
 ```kotlin
 // Initialize
-Sensey.getInstance().init(this)
+Sensey.init(this)
 
 // Start detection with a dispatcher lambda
-Sensey.getInstance().startShakeDetection { event ->
+Sensey.startShakeDetection { event ->
     when (event) {
         ShakeEvent.Detected -> println("Shake detected!")
         ShakeEvent.Stopped  -> println("Shake stopped")
     }
 }
 
-// Stop
-Sensey.getInstance().stop()
+// Stop all detection
+Sensey.stop()
 ```
 
 See the **[full usage guide](sensey/USAGE.md)** for every gesture with parameter options.

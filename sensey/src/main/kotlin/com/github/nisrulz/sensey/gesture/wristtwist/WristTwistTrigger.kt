@@ -16,9 +16,11 @@
 package com.github.nisrulz.sensey.gesture.wristtwist
 
 import com.github.nisrulz.sensey.contract.GestureTrigger
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 class WristTwistTrigger(
-    private val threshold: Float = 15f,
+    private val threshold: Float = 12f,
     private val timeForWristTwistGesture: Long = 1000L,
 ) : GestureTrigger<WristTwistEvent> {
 
@@ -27,19 +29,25 @@ class WristTwistTrigger(
 
     override fun evaluate(values: FloatArray, timestamp: Long): WristTwistEvent? {
         val (x, y, z) = values
+        val magnitude = sqrt(x * x + y * y + z * z)
+        val linearMagnitude = abs(magnitude - GRAVITY_EARTH)
 
-        return if (x < -9.8f && y > -3f && z < -threshold) {
+        if (linearMagnitude > threshold) {
             lastTimeWristTwistDetected = timestamp
             isGestureInProgress = true
-            null
-        } else {
-            val timeDelta = timestamp - lastTimeWristTwistDetected
-            if (timeDelta > timeForWristTwistGesture && isGestureInProgress) {
-                isGestureInProgress = false
-                WristTwistEvent.Twisted
-            } else {
-                null
-            }
+            return null
         }
+
+        val timeDelta = timestamp - lastTimeWristTwistDetected
+        return if (timeDelta > timeForWristTwistGesture && isGestureInProgress) {
+            isGestureInProgress = false
+            WristTwistEvent.Twisted
+        } else {
+            null
+        }
+    }
+
+    companion object {
+        private const val GRAVITY_EARTH = 9.8f
     }
 }

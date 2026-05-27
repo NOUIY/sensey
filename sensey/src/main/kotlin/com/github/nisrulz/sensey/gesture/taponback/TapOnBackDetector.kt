@@ -13,23 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.github.nisrulz.sensey.gesture.step
+package com.github.nisrulz.sensey.gesture.taponback
 
 import android.hardware.Sensor
-import android.hardware.SensorEvent
-import com.github.nisrulz.sensey.SensorDetector
+import com.github.nisrulz.sensey.TypedSensorDetector
+import com.github.nisrulz.sensey.contract.GestureTrigger
 
-class StepDetectorPreKitKat(
-    private val trigger: StepTrigger,
-    private val dispatcher: (StepEvent) -> Unit,
-) : SensorDetector(Sensor.TYPE_ACCELEROMETER) {
-
-    override fun onSensorEvent(sensorEvent: SensorEvent) {
-        val y = sensorEvent.values[1]
-        val event = trigger.evaluate(
-            values = floatArrayOf(y, 0f),
-            timestamp = sensorEvent.timestamp / 1_000_000,
-        )
-        event?.let(dispatcher)
-    }
-}
+class TapOnBackDetector(
+    trigger: GestureTrigger<TapOnBackEvent>,
+    dispatcher: (TapOnBackEvent) -> Unit,
+) : TypedSensorDetector<TapOnBackEvent>(trigger, dispatcher, Sensor.TYPE_ACCELEROMETER)

@@ -16,9 +16,11 @@
 package com.github.nisrulz.sensey.gesture.chop
 
 import com.github.nisrulz.sensey.contract.GestureTrigger
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 class ChopTrigger(
-    private val threshold: Float = 35f,
+    private val threshold: Float = 25f,
     private val timeForChopGesture: Long = 700L,
 ) : GestureTrigger<ChopEvent> {
 
@@ -27,19 +29,25 @@ class ChopTrigger(
 
     override fun evaluate(values: FloatArray, timestamp: Long): ChopEvent? {
         val (x, y, z) = values
+        val magnitude = sqrt(x * x + y * y + z * z)
+        val linearMagnitude = abs(magnitude - GRAVITY_EARTH)
 
-        return if (x > threshold && y < -threshold && z > threshold) {
+        if (linearMagnitude > threshold) {
             lastTimeChopDetected = timestamp
             isGestureInProgress = true
-            null
-        } else {
-            val timeDelta = timestamp - lastTimeChopDetected
-            if (timeDelta > timeForChopGesture && isGestureInProgress) {
-                isGestureInProgress = false
-                ChopEvent.Chopped
-            } else {
-                null
-            }
+            return null
         }
+
+        val timeDelta = timestamp - lastTimeChopDetected
+        return if (timeDelta > timeForChopGesture && isGestureInProgress) {
+            isGestureInProgress = false
+            ChopEvent.Chopped
+        } else {
+            null
+        }
+    }
+
+    companion object {
+        private const val GRAVITY_EARTH = 9.8f
     }
 }

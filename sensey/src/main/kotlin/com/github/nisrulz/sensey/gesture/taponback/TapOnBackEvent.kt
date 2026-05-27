@@ -13,13 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.github.nisrulz.sensey.gesture.wave
+package com.github.nisrulz.sensey.gesture.taponback
 
-import android.hardware.Sensor
-import com.github.nisrulz.sensey.TypedSensorDetector
-import com.github.nisrulz.sensey.contract.GestureTrigger
-
-class WaveDetector(
-    trigger: GestureTrigger<WaveEvent>,
-    dispatcher: (WaveEvent) -> Unit,
-) : TypedSensorDetector<WaveEvent>(trigger, dispatcher, Sensor.TYPE_PROXIMITY)
+object TapOnBackEvent

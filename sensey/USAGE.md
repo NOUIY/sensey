@@ -15,7 +15,15 @@ Initialize in your `Application` or `Activity`:
 Sensey.init(this)
 ```
 
-Release in `onDestroy` or `onPause`:
+With lifecycle-aware auto-stop (recommended):
+
+```kotlin
+Sensey.init(this, lifecycle)
+```
+
+This registers a `LifecycleEventObserver` that calls `Sensey.stop()` automatically on `ON_DESTROY`.
+
+Release manually (when not using lifecycle integration):
 
 ```kotlin
 Sensey.stop()
@@ -46,12 +54,13 @@ Sensey.startShakeDetection { event ->
 }
 ```
 
-> Store the lambda reference if you need to stop detection later:
-> ```kotlin
-> private val shakeDispatcher: (ShakeEvent) -> Unit = { event -> ... }
-> Sensey.startShakeDetection(shakeDispatcher)
-> Sensey.stopShakeDetection(shakeDispatcher)
-> ```
+Stop detection:
+
+```kotlin
+Sensey.stopShakeDetection()
+```
+
+All `stopXxxDetection()` methods are parameterless (no need to store the dispatcher reference).
 
 ---
 
@@ -302,7 +311,7 @@ Sensey.startOrientationDetection(smoothness = 3) { event -> /* ... */ }
 | `TiltDirectionEvent.AxisYTilt(direction)` | Tilt around Y axis |
 | `TiltDirectionEvent.AxisZTilt(direction)` | Tilt around Z axis |
 
-Directions: `TiltDirectionTrigger.DIRECTION_CLOCKWISE` (0) or `TiltDirectionTrigger.DIRECTION_ANTICLOCKWISE` (1).
+Directions: `TiltDirectionEvent.Direction.CLOCKWISE` or `TiltDirectionEvent.Direction.ANTICLOCKWISE` (enum).
 
 The dominant axis (highest magnitude) is reported.
 
@@ -334,6 +343,35 @@ Sensey.startRotationAngleDetection { event ->
 
 ---
 
+### TapOnBack
+
+Detects double-taps on the device back/side using gravity vector angle analysis.
+Single taps are ignored as false positives — only two rapid taps trigger.
+
+Tracks the gravity direction (per-axis EMA) and measures angular deviation.
+A tap rotates the phone slightly, causing a spike in the angle between the
+current gravity vector and the running baseline. Gradual orientation changes
+(such as moving the phone around) are rejected by the jerk filter and slow
+baseline adaptation.
+
+```kotlin
+Sensey.startTapOnBackDetection {
+    println("Tap on back detected!")
+}
+```
+
+With custom parameters:
+
+```kotlin
+Sensey.startTapOnBackDetection(
+    angleThreshold = 1.5f,
+    tapDebounceMs = 250L,
+    tapSequenceTimeoutMs = 500L,
+) { /* ... */ }
+```
+
+---
+
 ### SoundLevel
 
 | Event | Properties |
@@ -358,7 +396,7 @@ Sensey.startSoundLevelDetection(context) { event ->
 
 Activity type: `StepDetectorUtil.ACTIVITY_STILL` (0), `ACTIVITY_WALKING` (1), `ACTIVITY_RUNNING` (2).
 
-Auto-selects `StepDetectorPostKitKat` (if step counter sensor available) or `StepDetectorPreKitKat` (accelerometer-based).
+Uses `StepDetectorPostKitKat` (step counter sensor, API 19+). The accelerometer-based fallback was removed (minSdk 23).
 
 ```kotlin
 Sensey.startStepDetection(context, StepDetectorUtil.MALE) { event ->
@@ -396,6 +434,7 @@ Sensey.startPinchScaleDetection(context) { event ->
 
 | Event | Description |
 |-------|-------------|
+| `TouchTypeEvent.NTap(count)` | N consecutive taps within the time window (default `count=3`, 400ms window) |
 | `TouchTypeEvent.DoubleTap` | Double tap |
 | `TouchTypeEvent.LongPress` | Long press |
 | `TouchTypeEvent.SingleTap` | Single tap |
@@ -404,10 +443,8 @@ Sensey.startPinchScaleDetection(context) { event ->
 | `TouchTypeEvent.ThreeFingerSingleTap` | Three finger tap |
 | `TouchTypeEvent.TwoFingerSingleTap` | Two finger tap |
 
-Swipe directions: `SWIPE_DIR_UP`, `SWIPE_DIR_DOWN`, `SWIPE_DIR_LEFT`, `SWIPE_DIR_RIGHT`,
-`SWIPE_DIR_UP_LEFT`, `SWIPE_DIR_UP_RIGHT`, `SWIPE_DIR_DOWN_LEFT`, `SWIPE_DIR_DOWN_RIGHT`.
-
-Scroll directions: `SCROLL_DIR_UP`, `SCROLL_DIR_DOWN`, `SCROLL_DIR_LEFT`, `SCROLL_DIR_RIGHT`.
+Directions: `TouchTypeEvent.Direction` enum with `UP`, `DOWN`, `LEFT`, `RIGHT`,
+`UP_RIGHT`, `UP_LEFT`, `DOWN_RIGHT`, `DOWN_LEFT`.
 
 ```kotlin
 // Override dispatchTouchEvent in Activity
@@ -419,6 +456,7 @@ override fun dispatchTouchEvent(event: MotionEvent): Boolean {
 // Start detection
 Sensey.startTouchTypeDetection(context) { event ->
     when (event) {
+        is TouchTypeEvent.NTap    -> println("${event.count}-tap detected")
         TouchTypeEvent.DoubleTap -> println("Double tap")
         TouchTypeEvent.LongPress -> println("Long press")
         TouchTypeEvent.SingleTap -> println("Single tap")
