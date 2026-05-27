@@ -29,6 +29,7 @@ android {
         minSdk = BuildSdkInfo.MIN_SDK_VERSION
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("consumer-rules.pro")
     }
 
     buildTypes {
@@ -43,6 +44,12 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.toVersion(BuildSdkInfo.JVM_TARGET)
         targetCompatibility = JavaVersion.toVersion(BuildSdkInfo.JVM_TARGET)
+    }
+
+    sourceSets {
+        getByName("test") {
+            java.srcDirs("src/test/java", "src/test/kotlin")
+        }
     }
 
     testOptions.unitTests.isIncludeAndroidResources = true
