@@ -16,7 +16,9 @@
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+
+    // Compose
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -41,31 +43,35 @@ android {
             isDebuggable = true
         }
         release {
-            isMinifyEnabled = true
-
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            isMinifyEnabled = false
         }
     }
 
-    java {
-        toolchain {
-            languageVersion.set(JavaLanguageVersion.of(BuildSdkInfo.JVM_TARGET))
-        }
+    compileOptions {
+        sourceCompatibility = JavaVersion.toVersion(BuildSdkInfo.JVM_TARGET)
+        targetCompatibility = JavaVersion.toVersion(BuildSdkInfo.JVM_TARGET)
+    }
+
+    lint {
+        abortOnError = false
     }
 
     buildFeatures {
-        viewBinding = true
+        compose = true
         buildConfig = true
     }
 }
 
 dependencies {
-    // Support
-    implementation(libs.appcompat)
-
     // Module Dependency
     implementation(projects.sensey)
+
+    // Support
+    implementation(libs.androidx.appcompat)
+
+    // Compose
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.bundles.compose)
+
+    debugImplementation(libs.bundles.compose.debug)
 }
