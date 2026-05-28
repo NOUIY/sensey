@@ -16,6 +16,14 @@
     <a href="https://search.maven.org/artifact/com.github.nisrulz/sensey">
         <img src="https://img.shields.io/maven-central/v/com.github.nisrulz/sensey"/>
     </a>
+    <!-- Docs -->
+    <a href="https://nisrulz.github.io/sensey/latest/index.html">
+        <img src="https://img.shields.io/badge/docs-Dokka-blue"/>
+    </a>
+    <!-- ktlint -->
+    <a href="https://github.com/JLLeitschuh/ktlint-gradle">
+        <img src="https://img.shields.io/badge/code%20style-ktlint-%23FF4081"/>
+    </a>
     <!-- API -->
     <a href="https://android-arsenal.com/api?level=23">
         <img src="https://img.shields.io/badge/API-23%2B-orange.svg?style=flat"/>
@@ -154,22 +162,46 @@
 # Quick start
 
 ```kotlin
-// Initialize
-Sensey.init(this)
+import com.github.nisrulz.sensey.senseyRegister
+import com.github.nisrulz.sensey.senseyStop
+import com.github.nisrulz.sensey.gesture.shake.ShakeEvent
+import com.github.nisrulz.sensey.gesture.flip.FlipEvent
 
-// Start detection with a dispatcher lambda
-Sensey.startShakeDetection { event ->
-    when (event) {
-        ShakeEvent.Detected -> println("Shake detected!")
-        ShakeEvent.Stopped  -> println("Shake stopped")
+// In an Activity:
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    senseyRegister(lifecycle) {
+        shakePlugin { event ->
+            when (event) {
+                ShakeEvent.Detected -> println("Shake detected!")
+                ShakeEvent.Stopped  -> println("Shake stopped")
+            }
+        }
+        flipPlugin { event ->
+            when (event) {
+                FlipEvent.FaceUp   -> println("Face up")
+                FlipEvent.FaceDown -> println("Face down")
+            }
+        }
     }
 }
 
-// Stop all detection
-Sensey.stop()
+// In Compose:
+@Composable
+fun MyScreen(lifecycle: Lifecycle) {
+    SenseyGestureEffect(lifecycle) {
+        shakePlugin { event ->
+            when (event) {
+                ShakeEvent.Detected -> println("Shake detected!")
+                ShakeEvent.Stopped  -> println("Shake stopped")
+            }
+        }
+    }
+    Box(modifier = Modifier.fillMaxSize().senseyGestures())
+}
 ```
 
-See the **[full usage guide](sensey/USAGE.md)** for every gesture with parameter options.
+See the **[full usage guide](sensey/USAGE.md)** for every gesture with parameter options and common examples.
 
 # Including in your project
 
@@ -185,9 +217,9 @@ where `{latest version}` corresponds to the latest published version on [Maven C
 
 Each gesture is split into three components:
 
-- **`GestureTrigger<T>`** — Pure Kotlin contract. The detection algorithm lives here, with no Android dependencies.
-- **Trigger implementation** — e.g., `ShakeTrigger`, `FlipTrigger`. Can be unit tested without a device or emulator.
-- **Detector** — Thin Android-aware bridge that converts `SensorEvent` → trigger → your callback.
+- **`GestureTrigger<T>`** — Pure Kotlin contract with no Android dependencies. The detection algorithm lives here and can be unit tested without a device. All complex logic is extracted into private functions for readability.
+- **`GesturePlugin`** — Wraps a trigger into a plugin that registers with a `Sensey` instance via `Sensey.register(plugin)`. Sensor-based gestures use `TypedSensorDetector` directly (composition over inheritance), avoiding intermediate Detector classes.
+- **`Sensey` class** — Plugin registry with lifecycle management. Provides `register {}` DSL, `senseyRegister()` / `SenseyGestureEffect()` extension functions, and auto-cleanup on lifecycle destroy.
 
 # Changelog
 

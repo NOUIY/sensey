@@ -17,39 +17,55 @@ package com.github.nisrulz.sensey.gesture.pinchscale
 
 import com.github.nisrulz.sensey.contract.GestureTrigger
 
-class PinchScaleTrigger : GestureTrigger<PinchScaleEvent> {
-
+internal class PinchScaleTrigger : GestureTrigger<PinchScaleEvent> {
     private var eventOccurred = 0
-    private var countOfScaleIn = 0
-    private var countOfScaleOut = 0
+    private var scaleInCount = 0
+    private var scaleOutCount = 0
 
-    override fun evaluate(values: FloatArray, timestamp: Long): PinchScaleEvent? {
+    override fun evaluate(
+        values: FloatArray,
+        timestamp: Long,
+    ): PinchScaleEvent? {
         val scaleFactor = values.getOrNull(0) ?: return null
 
-        return if (scaleFactor > 1.01f) {
-            countOfScaleIn += 1
-            if (eventOccurred != 1 && countOfScaleIn > 2) {
-                eventOccurred = 1
-                PinchScaleEvent(scaleFactor, false)
-            } else {
-                null
+        return when {
+            isScalingIn(scaleFactor) -> {
+                scaleInCount++
+                if (eventOccurred != SCALE_IN && scaleInCount > CONFIRMATION_THRESHOLD) {
+                    eventOccurred = SCALE_IN
+                    PinchScaleEvent(scaleFactor, isScalingOut = false)
+                } else {
+                    null
+                }
             }
-        } else if (scaleFactor < 0.99f) {
-            countOfScaleOut += 1
-            if (eventOccurred != 2 && countOfScaleOut > 2) {
-                eventOccurred = 2
-                PinchScaleEvent(scaleFactor, true)
-            } else {
-                null
+            isScalingOut(scaleFactor) -> {
+                scaleOutCount++
+                if (eventOccurred != SCALE_OUT && scaleOutCount > CONFIRMATION_THRESHOLD) {
+                    eventOccurred = SCALE_OUT
+                    PinchScaleEvent(scaleFactor, isScalingOut = true)
+                } else {
+                    null
+                }
             }
-        } else {
-            null
+            else -> null
         }
     }
 
     fun reset() {
         eventOccurred = 0
-        countOfScaleIn = 0
-        countOfScaleOut = 0
+        scaleInCount = 0
+        scaleOutCount = 0
+    }
+
+    private fun isScalingIn(scaleFactor: Float): Boolean = scaleFactor > SCALE_IN_THRESHOLD
+
+    private fun isScalingOut(scaleFactor: Float): Boolean = scaleFactor < SCALE_OUT_THRESHOLD
+
+    companion object {
+        private const val SCALE_IN_THRESHOLD = 1.01f
+        private const val SCALE_OUT_THRESHOLD = 0.99f
+        private const val CONFIRMATION_THRESHOLD = 2
+        private const val SCALE_IN = 1
+        private const val SCALE_OUT = 2
     }
 }

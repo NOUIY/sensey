@@ -11,46 +11,51 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.github.nisrulz.sensey.gesture.compose.senseyGestures
 
 @Composable
 fun TouchScreen(
     touchDetectionChecked: Boolean,
     pinchScaleChecked: Boolean,
-    onTouchDetectionToggle: (Boolean) -> Unit,
-    onPinchScaleToggle: (Boolean) -> Unit,
+    onTouchDetectionToggle: () -> Unit,
+    onPinchScaleToggle: () -> Unit,
     resultText: String,
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding(),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .systemBarsPadding(),
         color = PrimaryBlue,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
                 SenseyRadioButton(
                     label = "Touch Detection",
                     selected = touchDetectionChecked,
-                    onSelect = { onTouchDetectionToggle(true) },
+                    onSelect = { onTouchDetectionToggle() },
                 )
                 SenseyRadioButton(
                     label = "Pinch Scale Detection",
                     selected = pinchScaleChecked,
-                    onSelect = { onPinchScaleToggle(true) },
+                    onSelect = { onPinchScaleToggle() },
                 )
             }
 
             ResultArea(
                 text = resultText,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 16.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
+                        .senseyGestures(),
             )
         }
     }

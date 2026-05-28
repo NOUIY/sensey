@@ -16,8 +16,11 @@
 
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.compose.compiler)
 
     alias(libs.plugins.maven.publish)
+
+    alias(libs.plugins.dokka)
 }
 
 android {
@@ -30,6 +33,10 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
+    }
+
+    buildFeatures {
+        compose = true
     }
 
     buildTypes {
@@ -55,16 +62,41 @@ android {
     testOptions.unitTests.isIncludeAndroidResources = true
 
     lint {
-        abortOnError = false
+        abortOnError = true
+    }
+}
+
+val libraryVersion by extra(LibraryInfo.POM_VERSION)
+
+dokka {
+    dokkaPublications.html {
+        moduleName.set(LibraryInfo.POM_NAME)
+        moduleVersion.set(LibraryInfo.POM_VERSION)
+        includes.from("README.md")
+    }
+    dokkaSourceSets.configureEach {
+        sourceLink {
+            localDirectory.set(file("src/main/kotlin"))
+            remoteUrl.set(uri("https://github.com/nisrulz/sensey/tree/master/sensey/src/main/kotlin"))
+            remoteLineSuffix.set("#L")
+        }
     }
 }
 
 dependencies {
+    dokkaPlugin("org.jetbrains.dokka:versioning-plugin:${libs.versions.dokka.get()}")
+    dokkaPlugin("org.jetbrains.dokka:kotlin-as-java-plugin:${libs.versions.dokka.get()}")
+    dokkaPlugin("org.jetbrains.dokka:android-documentation-plugin:${libs.versions.dokka.get()}")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.lifecycle.common)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
+
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.compose.foundation)
 
     testImplementation(libs.bundles.testing)
 }

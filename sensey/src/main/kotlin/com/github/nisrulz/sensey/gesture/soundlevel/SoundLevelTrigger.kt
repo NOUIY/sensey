@@ -20,25 +20,34 @@ import kotlin.math.abs
 import kotlin.math.log10
 import kotlin.math.sqrt
 
-class SoundLevelTrigger(
+internal class SoundLevelTrigger(
     private val offset: Float = 100f,
 ) : GestureTrigger<SoundLevelEvent> {
-
-    override fun evaluate(values: FloatArray, timestamp: Long): SoundLevelEvent? {
+    override fun evaluate(
+        values: FloatArray,
+        timestamp: Long,
+    ): SoundLevelEvent? {
         if (values.isEmpty()) return null
+        val rms = computeRms(values)
+        val soundLevel = computeDecibels(rms)
+        return SoundLevelEvent(soundLevel + offset)
+    }
 
-        var sumLevel = 0.0
-        for (value in values) {
-            sumLevel += value / 32768.0
+    private fun computeRms(samples: FloatArray): Double {
+        var sumSquares = 0.0
+        for (sample in samples) {
+            sumSquares += (sample / MAX_AMPLITUDE) * (sample / MAX_AMPLITUDE)
         }
-        val numberOfSamples = values.size
-        val meanSquare = abs(sumLevel / numberOfSamples).coerceAtLeast(1e-10)
-        val rms = sqrt(meanSquare)
-        var soundLevel = (20.0 * log10(rms)).toFloat()
+        return sqrt(abs(sumSquares / samples.size))
+    }
 
-        if (soundLevel.isNaN() || soundLevel.isInfinite()) return null
+    private fun computeDecibels(rms: Double): Float {
+        val db = 20.0 * log10(rms.coerceAtLeast(MIN_POWER))
+        return if (db.isNaN() || db.isInfinite()) 0f else db.toFloat()
+    }
 
-        soundLevel += offset
-        return SoundLevelEvent(soundLevel)
+    companion object {
+        private const val MAX_AMPLITUDE = 32768.0
+        private const val MIN_POWER = 1e-10
     }
 }
