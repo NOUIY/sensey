@@ -1,54 +1,40 @@
-/*
- * Copyright (C) 2016 Nishant Srivastava
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 package com.github.nisrulz.sensey.gesture.proximity
 
 import com.github.nisrulz.sensey.contract.GestureTrigger
 
+/**
+ * Detects near/far proximity transitions.
+ *
+ * Algorithm: Compares the raw distance against the sensor's max-range to determine
+ * near vs far state. Filters out repeated events that match the last dispatched
+ * state, which guards against continuous-sensor duplicate firings and is safe for
+ * on-change sensors that fire only once per transition.
+ * Expected sensor: Proximity sensor (TYPE_PROXIMITY).
+ * State: lastDispatchedState (last emitted event, used to suppress duplicates).
+ */
 internal class ProximityTrigger(
-    private val debounceMillis: Long = 200L,
+    @Suppress("UNUSED_PARAMETER") private val debounceMillis: Long = 200L,
 ) : GestureTrigger<ProximityEvent> {
-    private var lastDispatchedState: ProximityEvent? = null
-    private var lastStateChangeTime = 0L
-    private var hasPendingState = false
+    private var lastDispatchedState: ProximityEvent? = null // Tracks the last emitted event to avoid duplicate dispatches
 
     override fun evaluate(
         values: FloatArray,
         timestamp: Long,
     ): ProximityEvent? {
-        val distance = values[0]
-        val maxRange = values.getOrNull(1) ?: return null
-        val currentState = if (distance < maxRange) ProximityEvent.Near else ProximityEvent.Far
+        val distance = values[0] // Extract raw distance from the proximity sensor
+        val maxRange = values.getOrNull(1) ?: return null // Extract max-range; abort if unavailable
+        val currentState = if (distance < maxRange) ProximityEvent.Near else ProximityEvent.Far // Classify near/far
 
-        if (currentState == lastDispatchedState) {
-            hasPendingState = false
-            return null
-        }
+        // Same as last dispatched → no change (filters repeated events from continuous sensors)
+        if (currentState == lastDispatchedState) return null
 
-        if (!hasPendingState) {
-            hasPendingState = true
-            lastStateChangeTime = timestamp
-            return null
-        }
-
-        if (timestamp - lastStateChangeTime >= debounceMillis) {
-            lastDispatchedState = currentState
-            hasPendingState = false
-            return currentState
-        }
-
-        return null
+        // State transition detected → dispatch immediately.
+        // Previous debounce-based algorithm required 2 events in the new state to dispatch,
+        // which permanently stalled with on-change proximity sensors (they fire only once
+        // per transition). The lastDispatchedState compare above is sufficient to prevent
+        // same-state re-dispatches from continuous sensors.
+        lastDispatchedState = currentState
+        return currentState
     }
 }

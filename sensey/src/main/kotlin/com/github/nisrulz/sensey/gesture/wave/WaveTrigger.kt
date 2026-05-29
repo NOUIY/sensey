@@ -1,52 +1,52 @@
-/*
- * Copyright (C) 2016 Nishant Srivastava
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 package com.github.nisrulz.sensey.gesture.wave
 
 import com.github.nisrulz.sensey.contract.GestureTrigger
 
+/**
+ * Detects a hand wave over the proximity sensor.
+ *
+ * Algorithm: Tracks near→far state transitions of the proximity sensor. A
+ * wave is recognised when the device transitions from NEAR to FAR, the near
+ * state was held for a minimum duration, the entire gesture occurs within a
+ * configurable time window, and sufficient debounce time has passed since
+ * the last detected wave.
+ * Expected sensor: Proximity sensor (TYPE_PROXIMITY).
+ * State: lastProximityEventTime (last near transition), lastProximityState
+ * (current state), lastWaveTime (debounce), nearStateStartTime (min duration).
+ */
 internal class WaveTrigger(
-    private val timeWindowMillis: Float = 2000f,
+    private val timeWindowMillis: Long = 2000L,
     private val debounceMillis: Long = 1000L,
     private val minNearDurationMs: Long = 300L,
 ) : GestureTrigger<WaveEvent> {
-    private var lastProximityEventTime = 0L
-    private var lastProximityState = FAR
-    private var lastWaveTime = 0L
-    private var nearStateStartTime = 0L
+    private var lastProximityEventTime = 0L // Timestamp of the last proximity state change to near
+    private var lastProximityState = FAR // Previous proximity state for change detection
+    private var lastWaveTime = 0L // Timestamp of the last detected wave (for debounce)
+    private var nearStateStartTime = 0L // When the current near state began (for min duration check)
 
     override fun evaluate(
         values: FloatArray,
         timestamp: Long,
     ): WaveEvent? {
-        val proximityState = if (values[0] == 0f) NEAR else FAR
+        val proximityState = if (values[0] == 0f) NEAR else FAR // Convert sensor value to near/far (0 = near)
+        val stateChanged = proximityState != lastProximityState // Detect a state transition
 
-        if (proximityState == NEAR && lastProximityState == FAR) {
+        if (stateChanged && proximityState == NEAR) {
+            // Transitioned to near: record the timing
+            lastProximityEventTime = timestamp
             nearStateStartTime = timestamp
         }
 
         val result =
             if (isWaveDetected(timestamp, proximityState)) {
                 lastWaveTime = timestamp
-                WaveEvent.Waved
+                WaveEvent.Waved // All wave conditions satisfied → emit
             } else {
                 null
             }
 
-        lastProximityEventTime = timestamp
-        lastProximityState = proximityState
+        lastProximityState = proximityState // Update state for next evaluation
         return result
     }
 
@@ -54,6 +54,7 @@ internal class WaveTrigger(
         timestamp: Long,
         proximityState: Int,
     ): Boolean {
+        // Wave conditions: far transition, minimum near duration, debounce, and time window
         val nearDuration = timestamp - nearStateStartTime
         val isNearHeld = proximityState == FAR && nearDuration >= minNearDurationMs
         val isPastDebounce = lastWaveTime == 0L || timestamp - lastWaveTime > debounceMillis

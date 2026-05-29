@@ -1,26 +1,10 @@
-/*
- * Copyright (C) 2016 Nishant Srivastava
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.compose.compiler)
 
     alias(libs.plugins.maven.publish)
-
-    alias(libs.plugins.dokka)
 }
 
 android {
@@ -68,26 +52,7 @@ android {
 
 val libraryVersion by extra(LibraryInfo.POM_VERSION)
 
-dokka {
-    dokkaPublications.html {
-        moduleName.set(LibraryInfo.POM_NAME)
-        moduleVersion.set(LibraryInfo.POM_VERSION)
-        includes.from("README.md")
-    }
-    dokkaSourceSets.configureEach {
-        sourceLink {
-            localDirectory.set(file("src/main/kotlin"))
-            remoteUrl.set(uri("https://github.com/nisrulz/sensey/tree/master/sensey/src/main/kotlin"))
-            remoteLineSuffix.set("#L")
-        }
-    }
-}
-
 dependencies {
-    dokkaPlugin("org.jetbrains.dokka:versioning-plugin:${libs.versions.dokka.get()}")
-    dokkaPlugin("org.jetbrains.dokka:kotlin-as-java-plugin:${libs.versions.dokka.get()}")
-    dokkaPlugin("org.jetbrains.dokka:android-documentation-plugin:${libs.versions.dokka.get()}")
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.lifecycle.common)

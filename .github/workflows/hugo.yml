@@ -1,0 +1,54 @@
+name: Deploy Hugo site
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "latest"
+          extended: true
+
+      - name: Resolve deploy path
+        id: resolve
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+            echo "destination_dir=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "base_url=https://nisrulz.github.io/sensey/${VERSION}/" >> "$GITHUB_OUTPUT"
+          else
+            echo "destination_dir=" >> "$GITHUB_OUTPUT"
+            echo "base_url=https://nisrulz.github.io/sensey/" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        run: hugo --gc --minify --baseURL "${{ steps.resolve.outputs.base_url }}"
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          destination_dir: ${{ steps.resolve.outputs.destination_dir }}
+          keep_files: true

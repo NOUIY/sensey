@@ -10,8 +10,21 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.nisrulz.sensey.gesture.compose.senseyGestures
+
+@Preview
+@Composable
+private fun TouchScreenPreview() {
+    TouchScreen(
+        touchDetectionChecked = true,
+        pinchScaleChecked = false,
+        onTouchDetectionToggle = {},
+        onPinchScaleToggle = {},
+        resultText = "Touch gesture detected",
+    )
+}
 
 @Composable
 fun TouchScreen(
