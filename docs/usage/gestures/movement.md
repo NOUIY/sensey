@@ -7,6 +7,10 @@ weight: 6
 
 Detects when the device is moving or stationary. Register with `movementPlugin`.
 
+## How to perform
+
+Move the phone around in your hand, or place it still on a flat surface.
+
 ## Algorithm
 
 The algorithm computes the Euclidean magnitude of the acceleration vector and compares the absolute delta between consecutive readings against a threshold. If the delta exceeds the threshold the device is considered moving (with the dominant spatial direction reported). If no movement occurs within a configurable timeout the device is declared stationary.
@@ -23,19 +27,19 @@ The algorithm computes the Euclidean magnitude of the acceleration vector and co
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `threshold` | Acceleration magnitude delta threshold to consider as movement | `0.3f` |
-| `timeBeforeDeclaringStationary` | Time in milliseconds of no movement before declaring stationary | `5000L` |
+| `timeBeforeDeclaringStationary` | Time in milliseconds of no movement before declaring stationary | `1500L` |
 
 ## Usage
 
 ```kotlin
 senseyRegister(lifecycle) {
     movementPlugin(
-        threshold = 0.3f,                   // accel magnitude delta to count as movement (default: 0.3f)
-        timeBeforeDeclaringStationary = 5000L, // ms of stillness before Stationary event (default: 5000L)
+        threshold = 0.3f,                                     // accel delta magnitude to trigger (default: 0.3f)
+        timeBeforeDeclaringStationary = 1500L, // ms of stillness before Stationary event (default: 1500L)
     ) { event ->
         when (event) {
-            is MovementEvent.Moved      -> println("Moving in direction: ${event.direction}") // device is in motion
-            MovementEvent.Stationary -> println("Stationary") // device has been still for the timeout
+            is MovementEvent.Moved -> println("Movement detected!" + " in direction: " + event.direction) // device is moving
+            is MovementEvent.Stationary -> println("Device stationary!") // device has stopped moving
         }
     }
 }

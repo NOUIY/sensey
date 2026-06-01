@@ -10,19 +10,35 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.github.nisrulz.sensey.Sensey
 import com.github.nisrulz.sensey.SensorDetector
 import com.github.nisrulz.sensey.TypedSensorDetector
 import com.github.nisrulz.sensey.contract.GesturePlugin
+import com.github.nisrulz.sensey.gesture.audio.clap.ClapDetector
+import com.github.nisrulz.sensey.gesture.audio.clap.ClapEvent
+import com.github.nisrulz.sensey.gesture.audio.clap.ClapTrigger
 import com.github.nisrulz.sensey.gesture.chop.ChopEvent
 import com.github.nisrulz.sensey.gesture.chop.ChopTrigger
 import com.github.nisrulz.sensey.gesture.compose.ComposeGestureProvider
+import com.github.nisrulz.sensey.gesture.devicespin.DeviceSpinEvent
+import com.github.nisrulz.sensey.gesture.devicespin.DeviceSpinTrigger
+import com.github.nisrulz.sensey.gesture.diagonalswipe.DiagonalSwipeEvent
+import com.github.nisrulz.sensey.gesture.diagonalswipe.DiagonalSwipeTrigger
+import com.github.nisrulz.sensey.gesture.edgeswipe.Edge
+import com.github.nisrulz.sensey.gesture.edgeswipe.EdgeSwipeEvent
+import com.github.nisrulz.sensey.gesture.edgeswipe.EdgeSwipeTrigger
 import com.github.nisrulz.sensey.gesture.flip.FlipEvent
 import com.github.nisrulz.sensey.gesture.flip.FlipTrigger
+import com.github.nisrulz.sensey.gesture.headshake.HeadShakeEvent
+import com.github.nisrulz.sensey.gesture.headshake.HeadShakeTrigger
 import com.github.nisrulz.sensey.gesture.light.LightEvent
 import com.github.nisrulz.sensey.gesture.light.LightTrigger
 import com.github.nisrulz.sensey.gesture.movement.MovementEvent
 import com.github.nisrulz.sensey.gesture.movement.MovementTrigger
+import com.github.nisrulz.sensey.gesture.nodgesture.NodGestureEvent
+import com.github.nisrulz.sensey.gesture.nodgesture.NodGestureTrigger
 import com.github.nisrulz.sensey.gesture.orientation.OrientationDetector
 import com.github.nisrulz.sensey.gesture.orientation.OrientationEvent
 import com.github.nisrulz.sensey.gesture.orientation.OrientationTrigger
@@ -33,6 +49,9 @@ import com.github.nisrulz.sensey.gesture.pinchscale.PinchScaleTrigger
 import com.github.nisrulz.sensey.gesture.proximity.ProximityDetector
 import com.github.nisrulz.sensey.gesture.proximity.ProximityEvent
 import com.github.nisrulz.sensey.gesture.proximity.ProximityTrigger
+import com.github.nisrulz.sensey.gesture.raisetoear.RaiseToEarDetector
+import com.github.nisrulz.sensey.gesture.raisetoear.RaiseToEarEvent
+import com.github.nisrulz.sensey.gesture.raisetoear.RaiseToEarTrigger
 import com.github.nisrulz.sensey.gesture.rotationangle.RotationAngleDetector
 import com.github.nisrulz.sensey.gesture.rotationangle.RotationAngleEvent
 import com.github.nisrulz.sensey.gesture.rotationangle.RotationAngleTrigger
@@ -45,12 +64,15 @@ import com.github.nisrulz.sensey.gesture.soundlevel.SoundLevelEvent
 import com.github.nisrulz.sensey.gesture.soundlevel.SoundLevelTrigger
 import com.github.nisrulz.sensey.gesture.step.StepEvent
 import com.github.nisrulz.sensey.gesture.step.StepTrigger
+import com.github.nisrulz.sensey.gesture.taponback.TapOnBackDetector
 import com.github.nisrulz.sensey.gesture.taponback.TapOnBackEvent
 import com.github.nisrulz.sensey.gesture.taponback.TapOnBackTrigger
 import com.github.nisrulz.sensey.gesture.tiltdirection.TiltDirectionEvent
 import com.github.nisrulz.sensey.gesture.tiltdirection.TiltDirectionTrigger
 import com.github.nisrulz.sensey.gesture.touchtype.TouchTypeEvent
 import com.github.nisrulz.sensey.gesture.touchtype.TouchTypeTrigger
+import com.github.nisrulz.sensey.gesture.turnover.TurnOverEvent
+import com.github.nisrulz.sensey.gesture.turnover.TurnOverTrigger
 import com.github.nisrulz.sensey.gesture.wave.WaveEvent
 import com.github.nisrulz.sensey.gesture.wave.WaveTrigger
 import com.github.nisrulz.sensey.gesture.wristtwist.WristTwistEvent
@@ -116,7 +138,7 @@ fun proximityPlugin(
 
 fun movementPlugin(
     threshold: Float = 0.3f,
-    timeBeforeDeclaringStationary: Long = 5000L,
+    timeBeforeDeclaringStationary: Long = 1500L,
     dispatcher: (MovementEvent) -> Unit,
 ): GesturePlugin =
     SensorGesturePlugin(
@@ -147,7 +169,7 @@ fun chopPlugin(
     SensorGesturePlugin(
         key = "ChopPlugin",
         detectorFactory = {
-            TypedSensorDetector(ChopTrigger(threshold, timeForChopGesture), dispatcher, Sensor.TYPE_ACCELEROMETER)
+            TypedSensorDetector(ChopTrigger(threshold, timeForChopGesture), dispatcher, Sensor.TYPE_LINEAR_ACCELERATION)
         },
     )
 
@@ -162,9 +184,111 @@ fun wristTwistPlugin(
             TypedSensorDetector(
                 WristTwistTrigger(threshold, timeForWristTwistGesture),
                 dispatcher,
-                Sensor.TYPE_ACCELEROMETER,
+                Sensor.TYPE_LINEAR_ACCELERATION,
             )
         },
+    )
+
+/**
+ * Creates a turnover (gyro-based flip) detection plugin.
+ *
+ * More precise than the accelerometer-based [flipPlugin] since it directly
+ * measures angular motion via the gyroscope rather than inferring orientation
+ * from the gravity vector.
+ */
+fun turnOverPlugin(
+    angleThreshold: Float = 150f,
+    dispatcher: (TurnOverEvent) -> Unit,
+): GesturePlugin =
+    SensorGesturePlugin(
+        key = "TurnOverPlugin",
+        detectorFactory = {
+            TypedSensorDetector(
+                TurnOverTrigger(angleThreshold = angleThreshold),
+                dispatcher,
+                Sensor.TYPE_GYROSCOPE,
+            )
+        },
+    )
+
+/**
+ * Creates a device spin detection plugin.
+ *
+ * Detects rapid rotation on any axis exceeding [angleThreshold] within
+ * a [timeWindowMs] window. Useful for "spin to shuffle" or similar features.
+ */
+fun deviceSpinPlugin(
+    angleThreshold: Float = 270f,
+    timeWindowMs: Long = 2000L,
+    dispatcher: (DeviceSpinEvent) -> Unit,
+): GesturePlugin =
+    SensorGesturePlugin(
+        key = "DeviceSpinPlugin",
+        detectorFactory = {
+            TypedSensorDetector(
+                DeviceSpinTrigger(angleThreshold = angleThreshold, timeWindowMs = timeWindowMs),
+                dispatcher,
+                Sensor.TYPE_GYROSCOPE,
+            )
+        },
+    )
+
+/**
+ * Creates a raise-to-ear detection plugin.
+ *
+ * Fuses proximity and gravity sensor data. Fires when the device is held
+ * near the ear (proximity near) and in an upright orientation (gravity
+ * aligned with the Z-axis). Useful for call screen-off or audio routing.
+ */
+fun raiseToEarPlugin(
+    maxProximityCm: Float = 5f,
+    minGzRatio: Float = 0.3f,
+    debounceMs: Long = 500L,
+    dispatcher: (RaiseToEarEvent) -> Unit,
+): GesturePlugin =
+    SensorGesturePlugin(
+        key = "RaiseToEarPlugin",
+        detectorFactory = {
+            RaiseToEarDetector(
+                trigger =
+                    RaiseToEarTrigger(
+                        maxProximityCm = maxProximityCm,
+                        minGzRatio = minGzRatio,
+                        debounceMs = debounceMs,
+                    ),
+                dispatcher = dispatcher,
+            )
+        },
+    )
+
+/**
+ * Creates a clap detection plugin.
+ *
+ * Detects hand claps via the microphone using a multi‑stage pipeline:
+ * RMS + ZCR weighting + adaptive noise floor + multi‑clap counting.
+ * Requires `RECORD_AUDIO` permission at runtime. No audio data is
+ * stored or transmitted.
+ *
+ * @param thresholdDb  absolute minimum dBFS a buffer must reach (default -45f)
+ * @param requiredClaps  number of distinct claps needed to fire (default 2)
+ * @param clapTimeframeMs  rolling window for multi‑clap counting (default 800ms)
+ * @param dispatchEvents  callback receiving [ClapEvent.Clapped]
+ */
+fun clapPlugin(
+    context: Context,
+    thresholdDb: Float = -45f,
+    requiredClaps: Int = 2,
+    clapTimeframeMs: Long = 800L,
+    dispatchEvents: (ClapEvent) -> Unit,
+): GesturePlugin =
+    ClapPlugin(
+        context,
+        ClapTrigger(
+            thresholdDb = thresholdDb,
+            requiredClaps = requiredClaps,
+            clapTimeframeMs = clapTimeframeMs,
+        ),
+        dispatchEvents,
     )
 
 fun wavePlugin(
@@ -194,23 +318,84 @@ fun pickupDevicePlugin(
 ): GesturePlugin =
     SensorGesturePlugin(
         key = "PickupDevicePlugin",
-        detectorFactory = { TypedSensorDetector(PickupDeviceTrigger(settleTimeMs = settleTimeMs), dispatcher, Sensor.TYPE_ACCELEROMETER) },
+        detectorFactory = {
+            TypedSensorDetector(PickupDeviceTrigger(settleTimeMs = settleTimeMs), dispatcher, Sensor.TYPE_ACCELEROMETER)
+        },
     )
 
 fun tapOnBackPlugin(
-    angleThreshold: Float = 1.5f,
-    minAngleJerk: Float = 1.5f,
+    accelThreshold: Float = 2f,
+    minJerk: Float = 2f,
     tapDebounceMs: Long = 250L,
-    tapSequenceTimeoutMs: Long = 500L,
+    tapIntervalMs: Long = 500L,
+    cooldownMs: Long = 1000L,
     dispatcher: (TapOnBackEvent) -> Unit,
 ): GesturePlugin =
     SensorGesturePlugin(
         key = "TapOnBackPlugin",
         detectorFactory = {
+            TapOnBackDetector(
+                trigger =
+                    TapOnBackTrigger(
+                        accelThreshold = accelThreshold,
+                        minJerk = minJerk,
+                        tapDebounceMs = tapDebounceMs,
+                        tapIntervalMs = tapIntervalMs,
+                        cooldownMs = cooldownMs,
+                    ),
+                dispatcher = dispatcher,
+            )
+        },
+    )
+
+/**
+ * Creates a nod gesture detection plugin.
+ *
+ * Detects a rapid pitch oscillation (nodding "yes"): tilting the device
+ * top-forward (~30° down) then back past level, within 800ms.
+ * Uses the gyroscope X-axis via [GyroIntegrator].
+ */
+fun nodGesturePlugin(
+    angleThreshold: Float = 30f,
+    timeWindowMs: Long = 800L,
+    cooldownMs: Long = 1500L,
+    dispatcher: (NodGestureEvent) -> Unit,
+): GesturePlugin =
+    SensorGesturePlugin(
+        key = "NodGesturePlugin",
+        detectorFactory = {
             TypedSensorDetector(
-                TapOnBackTrigger(angleThreshold, minAngleJerk, tapDebounceMs, tapSequenceTimeoutMs),
+                NodGestureTrigger(
+                    angleThreshold = angleThreshold,
+                    timeWindowMs = timeWindowMs,
+                    cooldownMs = cooldownMs,
+                ),
                 dispatcher,
-                Sensor.TYPE_ACCELEROMETER,
+                Sensor.TYPE_GYROSCOPE,
+            )
+        },
+    )
+
+/**
+ * Creates a head shake detection plugin.
+ *
+ * Detects a rapid yaw oscillation (shaking "no"): rotating the device
+ * left then right past level (~30° each way), within 800ms.
+ * Uses the gyroscope Z-axis via [GyroIntegrator].
+ */
+fun headShakePlugin(
+    angleThreshold: Float = 30f,
+    timeWindowMs: Long = 800L,
+    cooldownMs: Long = 1500L,
+    dispatcher: (HeadShakeEvent) -> Unit,
+): GesturePlugin =
+    SensorGesturePlugin(
+        key = "HeadShakePlugin",
+        detectorFactory = {
+            TypedSensorDetector(
+                HeadShakeTrigger(angleThreshold = angleThreshold, timeWindowMs = timeWindowMs, cooldownMs = cooldownMs),
+                dispatcher,
+                Sensor.TYPE_GYROSCOPE,
             )
         },
     )
@@ -253,6 +438,20 @@ fun touchTypePlugin(
     dispatcher: (TouchTypeEvent) -> Unit,
 ): GesturePlugin = TouchTypePlugin(TouchTypeTrigger(), dispatcher)
 
+fun edgeSwipePlugin(
+    context: Context,
+    edgeThresholdDp: Dp = 48.dp,
+    enabledEdges: Set<Edge> = setOf(Edge.LEFT, Edge.RIGHT, Edge.TOP, Edge.BOTTOM),
+    dispatcher: (EdgeSwipeEvent) -> Unit,
+): GesturePlugin = EdgeSwipePlugin(edgeThresholdDp, enabledEdges, dispatcher)
+
+fun diagonalSwipePlugin(
+    context: Context,
+    minDragDistance: Float = 80f,
+    angleToleranceDeg: Float = 22.5f,
+    dispatcher: (DiagonalSwipeEvent) -> Unit,
+): GesturePlugin = DiagonalSwipePlugin(DiagonalSwipeTrigger(minDragDistance, angleToleranceDeg), dispatcher)
+
 /**
  * Creates a sound level detection plugin.
  *
@@ -261,8 +460,9 @@ fun touchTypePlugin(
  * to compute sound pressure levels (RMS → dB). No audio data is stored,
  * transmitted, or persisted — only the computed decibel level is exposed.
  *
- * On API 33+ the system grants `RECORD_AUDIO` at install time for apps
- * targeting the permission via manifest, so no runtime prompt is shown.
+ * `RECORD_AUDIO` is a runtime (dangerous) permission on all API levels 23+.
+ * A runtime permission request must be shown to the user before this plugin
+ * can start capturing audio.
  */
 fun soundLevelPlugin(
     context: Context,
@@ -379,6 +579,113 @@ private class TouchTypePlugin(
     }
 }
 
+private class EdgeSwipePlugin(
+    private val edgeThresholdDp: Dp,
+    private val enabledEdges: Set<Edge>,
+    private val dispatcher: (EdgeSwipeEvent) -> Unit,
+) : GesturePlugin {
+    override val key = EdgeSwipePlugin::class.java.name
+    private var dragStart = Offset.Zero
+    private val provider = ComposeGestureProvider { installEdgeSwipe() }
+
+    override fun onRegister(sensey: Sensey) {
+        sensey.registerComposeGestureProvider(provider)
+    }
+
+    override fun onUnregister(sensey: Sensey) {
+        sensey.unregisterComposeGestureProvider(provider)
+    }
+
+    private suspend fun PointerInputScope.installEdgeSwipe() {
+        val edgeThresholdPx = with(density) { edgeThresholdDp.toPx() }
+        val trigger = EdgeSwipeTrigger(edgeThreshold = edgeThresholdPx, enabledEdges = enabledEdges)
+        val w = size.width.toFloat()
+        val h = size.height.toFloat()
+        var dragEnd = Offset.Zero
+        detectDragGestures(
+            onDragStart = {
+                dragStart = it
+                dragEnd = it
+            },
+            onDrag = { change, _ ->
+                change.consume()
+                dragEnd = change.position
+            },
+            onDragEnd = {
+                val event =
+                    trigger.evaluate(
+                        floatArrayOf(
+                            dragStart.x,
+                            dragStart.y,
+                            dragEnd.x,
+                            dragEnd.y,
+                            w,
+                            h,
+                        ),
+                        System.currentTimeMillis(),
+                    )
+                event?.let(dispatcher)
+                dragStart = Offset.Zero
+                dragEnd = Offset.Zero
+            },
+            onDragCancel = {
+                dragStart = Offset.Zero
+                dragEnd = Offset.Zero
+            },
+        )
+    }
+}
+
+private class DiagonalSwipePlugin(
+    private val trigger: DiagonalSwipeTrigger,
+    private val dispatcher: (DiagonalSwipeEvent) -> Unit,
+) : GesturePlugin {
+    override val key = DiagonalSwipePlugin::class.java.name
+    private var dragStart = Offset.Zero
+    private val provider = ComposeGestureProvider { installDiagonalSwipe() }
+
+    override fun onRegister(sensey: Sensey) {
+        sensey.registerComposeGestureProvider(provider)
+    }
+
+    override fun onUnregister(sensey: Sensey) {
+        sensey.unregisterComposeGestureProvider(provider)
+    }
+
+    private suspend fun PointerInputScope.installDiagonalSwipe() {
+        var dragEnd = Offset.Zero
+        detectDragGestures(
+            onDragStart = {
+                dragStart = it
+                dragEnd = it
+            },
+            onDrag = { change, _ ->
+                change.consume()
+                dragEnd = change.position
+            },
+            onDragEnd = {
+                val event =
+                    trigger.evaluate(
+                        floatArrayOf(
+                            dragStart.x,
+                            dragStart.y,
+                            dragEnd.x,
+                            dragEnd.y,
+                        ),
+                        System.currentTimeMillis(),
+                    )
+                event?.let(dispatcher)
+                dragStart = Offset.Zero
+                dragEnd = Offset.Zero
+            },
+            onDragCancel = {
+                dragStart = Offset.Zero
+                dragEnd = Offset.Zero
+            },
+        )
+    }
+}
+
 private class SoundLevelPlugin(
     private val context: Context,
     private val trigger: SoundLevelTrigger,
@@ -395,6 +702,31 @@ private class SoundLevelPlugin(
             return
         }
         detector = SoundLevelDetector(trigger, dispatcher)
+        detector?.start()
+    }
+
+    override fun onUnregister(sensey: Sensey) {
+        detector?.stop()
+        detector = null
+    }
+}
+
+private class ClapPlugin(
+    private val context: Context,
+    private val trigger: ClapTrigger,
+    private val dispatcher: (ClapEvent) -> Unit,
+) : GesturePlugin {
+    override val key = ClapPlugin::class.java.name
+    private var detector: ClapDetector? = null
+
+    override fun onRegister(sensey: Sensey) {
+        if (context.checkCallingOrSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            android.util.Log.w("Sensey", "RECORD_AUDIO permission not granted — ClapPlugin disabled")
+            return
+        }
+        detector = ClapDetector(trigger, dispatcher)
         detector?.start()
     }
 

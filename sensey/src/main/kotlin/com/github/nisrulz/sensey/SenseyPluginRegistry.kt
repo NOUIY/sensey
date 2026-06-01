@@ -2,11 +2,18 @@
 package com.github.nisrulz.sensey
 
 import android.content.Context
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.github.nisrulz.sensey.contract.GesturePlugin
 import com.github.nisrulz.sensey.gesture.chop.ChopEvent
+import com.github.nisrulz.sensey.gesture.diagonalswipe.DiagonalSwipeEvent
+import com.github.nisrulz.sensey.gesture.edgeswipe.Edge
+import com.github.nisrulz.sensey.gesture.edgeswipe.EdgeSwipeEvent
 import com.github.nisrulz.sensey.gesture.flip.FlipEvent
+import com.github.nisrulz.sensey.gesture.headshake.HeadShakeEvent
 import com.github.nisrulz.sensey.gesture.light.LightEvent
 import com.github.nisrulz.sensey.gesture.movement.MovementEvent
+import com.github.nisrulz.sensey.gesture.nodgesture.NodGestureEvent
 import com.github.nisrulz.sensey.gesture.orientation.OrientationEvent
 import com.github.nisrulz.sensey.gesture.pickupdevice.PickupDeviceEvent
 import com.github.nisrulz.sensey.gesture.pinchscale.PinchScaleEvent
@@ -71,7 +78,7 @@ class SenseyPluginRegistry {
 
     fun movementPlugin(
         threshold: Float = 0.3f,
-        timeBeforeDeclaringStationary: Long = 5000L,
+        timeBeforeDeclaringStationary: Long = 1500L,
         dispatcher: (MovementEvent) -> Unit,
     ) {
         plugins.add(
@@ -98,6 +105,30 @@ class SenseyPluginRegistry {
         plugins.add(
             com.github.nisrulz.sensey.gesture
                 .chopPlugin(threshold, timeForChopGesture, dispatcher),
+        )
+    }
+
+    fun nodGesturePlugin(
+        angleThreshold: Float = 30f,
+        timeWindowMs: Long = 500L,
+        cooldownMs: Long = 1500L,
+        dispatcher: (NodGestureEvent) -> Unit,
+    ) {
+        plugins.add(
+            com.github.nisrulz.sensey.gesture
+                .nodGesturePlugin(angleThreshold, timeWindowMs, cooldownMs, dispatcher),
+        )
+    }
+
+    fun headShakePlugin(
+        angleThreshold: Float = 30f,
+        timeWindowMs: Long = 500L,
+        cooldownMs: Long = 1500L,
+        dispatcher: (HeadShakeEvent) -> Unit,
+    ) {
+        plugins.add(
+            com.github.nisrulz.sensey.gesture
+                .headShakePlugin(angleThreshold, timeWindowMs, cooldownMs, dispatcher),
         )
     }
 
@@ -144,19 +175,21 @@ class SenseyPluginRegistry {
     }
 
     fun tapOnBackPlugin(
-        angleThreshold: Float = 1.5f,
-        minAngleJerk: Float = 1.5f,
+        accelThreshold: Float = 2f,
+        minJerk: Float = 5f,
         tapDebounceMs: Long = 250L,
-        tapSequenceTimeoutMs: Long = 500L,
+        tapIntervalMs: Long = 500L,
+        cooldownMs: Long = 1000L,
         dispatcher: (TapOnBackEvent) -> Unit,
     ) {
         plugins.add(
             com.github.nisrulz.sensey.gesture.tapOnBackPlugin(
-                angleThreshold,
-                minAngleJerk,
-                tapDebounceMs,
-                tapSequenceTimeoutMs,
-                dispatcher,
+                accelThreshold = accelThreshold,
+                minJerk = minJerk,
+                tapDebounceMs = tapDebounceMs,
+                tapIntervalMs = tapIntervalMs,
+                cooldownMs = cooldownMs,
+                dispatcher = dispatcher,
             ),
         )
     }
@@ -209,6 +242,30 @@ class SenseyPluginRegistry {
         plugins.add(
             com.github.nisrulz.sensey.gesture
                 .touchTypePlugin(context, dispatcher),
+        )
+    }
+
+    fun edgeSwipePlugin(
+        context: Context,
+        edgeThresholdDp: Dp = 48.dp,
+        enabledEdges: Set<Edge> = setOf(Edge.LEFT, Edge.RIGHT, Edge.TOP, Edge.BOTTOM),
+        dispatcher: (EdgeSwipeEvent) -> Unit,
+    ) {
+        plugins.add(
+            com.github.nisrulz.sensey.gesture
+                .edgeSwipePlugin(context, edgeThresholdDp, enabledEdges, dispatcher),
+        )
+    }
+
+    fun diagonalSwipePlugin(
+        context: Context,
+        minDragDistance: Float = 80f,
+        angleToleranceDeg: Float = 22.5f,
+        dispatcher: (DiagonalSwipeEvent) -> Unit,
+    ) {
+        plugins.add(
+            com.github.nisrulz.sensey.gesture
+                .diagonalSwipePlugin(context, minDragDistance, angleToleranceDeg, dispatcher),
         )
     }
 

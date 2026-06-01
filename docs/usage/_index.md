@@ -8,6 +8,7 @@ weight: 1
 - [Setup](setup.md)
 - [Overview](overview.md)
 - [Context-specific usage](context-specific-usage.md)
+- [Coroutines / Flow](coroutines-flow.md)
 
 ## Gestures
 
@@ -29,3 +30,9 @@ weight: 1
 - [Step](gestures/step.md)
 - [PinchScale](gestures/pinchscale.md)
 - [TouchType](gestures/touchtype.md)
+- [EdgeSwipe](gestures/edgeswipe.md)
+- [DiagonalSwipe](gestures/diagonalswipe.md)
+- [TurnOver](gestures/turnover.md)
+- [DeviceSpin](gestures/devicespin.md)
+- [RaiseToEar](gestures/raisetoear.md)
+- [Clap](gestures/clap.md)
