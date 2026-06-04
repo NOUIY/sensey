@@ -8,26 +8,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.dp
 import com.github.nisrulz.sensey.Sensey
 import com.github.nisrulz.sensey.contract.GesturePlugin
 import com.github.nisrulz.sensey.gesture.audio.clap.ClapEvent
 import com.github.nisrulz.sensey.gesture.chop.ChopEvent
 import com.github.nisrulz.sensey.gesture.chopPlugin
 import com.github.nisrulz.sensey.gesture.clapPlugin
+import com.github.nisrulz.sensey.gesture.cornerSwipePlugin
 import com.github.nisrulz.sensey.gesture.deviceSpinPlugin
 import com.github.nisrulz.sensey.gesture.devicespin.DeviceSpinEvent
 import com.github.nisrulz.sensey.gesture.diagonalSwipePlugin
-import com.github.nisrulz.sensey.gesture.diagonalswipe.DiagonalSwipeEvent
 import com.github.nisrulz.sensey.gesture.edgeSwipePlugin
-import com.github.nisrulz.sensey.gesture.edgeswipe.Edge
-import com.github.nisrulz.sensey.gesture.edgeswipe.EdgeSwipeEvent
 import com.github.nisrulz.sensey.gesture.flip.FlipEvent
 import com.github.nisrulz.sensey.gesture.flipPlugin
 import com.github.nisrulz.sensey.gesture.headShakePlugin
 import com.github.nisrulz.sensey.gesture.headshake.HeadShakeEvent
 import com.github.nisrulz.sensey.gesture.light.LightEvent
 import com.github.nisrulz.sensey.gesture.lightPlugin
+import com.github.nisrulz.sensey.gesture.longPressDragPlugin
 import com.github.nisrulz.sensey.gesture.movement.MovementEvent
 import com.github.nisrulz.sensey.gesture.movementPlugin
 import com.github.nisrulz.sensey.gesture.nodGesturePlugin
@@ -37,7 +35,6 @@ import com.github.nisrulz.sensey.gesture.orientationPlugin
 import com.github.nisrulz.sensey.gesture.pickupDevicePlugin
 import com.github.nisrulz.sensey.gesture.pickupdevice.PickupDeviceEvent
 import com.github.nisrulz.sensey.gesture.pinchScalePlugin
-import com.github.nisrulz.sensey.gesture.pinchscale.PinchScaleEvent
 import com.github.nisrulz.sensey.gesture.proximity.ProximityEvent
 import com.github.nisrulz.sensey.gesture.proximityPlugin
 import com.github.nisrulz.sensey.gesture.raiseToEarPlugin
@@ -57,10 +54,11 @@ import com.github.nisrulz.sensey.gesture.tapOnBackPlugin
 import com.github.nisrulz.sensey.gesture.taponback.TapOnBackEvent
 import com.github.nisrulz.sensey.gesture.tiltDirectionPlugin
 import com.github.nisrulz.sensey.gesture.tiltdirection.TiltDirectionEvent
-import com.github.nisrulz.sensey.gesture.touchTypePlugin
-import com.github.nisrulz.sensey.gesture.touchtype.TouchTypeEvent
+import com.github.nisrulz.sensey.gesture.touch.TouchEvent
+import com.github.nisrulz.sensey.gesture.touchPlugin
 import com.github.nisrulz.sensey.gesture.turnOverPlugin
 import com.github.nisrulz.sensey.gesture.turnover.TurnOverEvent
+import com.github.nisrulz.sensey.gesture.twoFingerSwipePlugin
 import com.github.nisrulz.sensey.gesture.wave.WaveEvent
 import com.github.nisrulz.sensey.gesture.wavePlugin
 import com.github.nisrulz.sensey.gesture.wristTwistPlugin
@@ -68,6 +66,7 @@ import com.github.nisrulz.sensey.gesture.wristtwist.WristTwistEvent
 import com.github.nisrulz.senseysample.utils.HapticUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -78,6 +77,7 @@ internal class SenseySensorManager(
     private val activity: Activity,
     private val logTag: String,
     val onSensorUnavailable: (String) -> Unit = {},
+    private val onSensorResult: (sensor: String, result: String) -> Unit = { _, _ -> },
 ) {
     companion object {
         const val SHAKE = "Shake Gesture"
@@ -103,9 +103,12 @@ internal class SenseySensorManager(
         const val NOD_GESTURE = "Nod Gesture"
         const val HEAD_SHAKE = "Head Shake"
         const val TOUCH_DETECTION = "Touch Detection"
-        const val PINCH_SCALE = "Pinch Scale Detection"
+        const val PINCH_SCALE = "Pinch Scale"
         const val EDGE_SWIPE = "Edge Swipe"
         const val DIAGONAL_SWIPE = "Diagonal Swipe"
+        const val LONG_PRESS_DRAG = "Long Press Drag"
+        const val TWO_FINGER_SWIPE = "Two Finger Swipe"
+        const val CORNER_SWIPE = "Corner Swipe"
     }
 
     var selectedSensor by mutableStateOf<String?>(null)
@@ -115,214 +118,9 @@ internal class SenseySensorManager(
     private var currentPlugin: GesturePlugin? = null
     private var pendingSensor: String? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val clearJobs = mutableMapOf<String, Job>()
 
-    fun getResult(sensor: String): String = resultsMap[sensor] ?: ""
-
-    private fun <T> withHaptic(dispatcher: (T) -> Unit): (T) -> Unit =
-        { event ->
-            HapticUtil.quickTap(activity)
-            dispatcher(event)
-        }
-
-    private val soundLevelDispatcher: (SoundLevelEvent) -> Unit =
-        { event: SoundLevelEvent ->
-            setResultText("${DecimalFormat("##.##").format(event.level.toDouble())} dB", true)
-        }
-
-    private val clapDispatcher: (ClapEvent) -> Unit =
-        withHaptic { setResultText("Clap Detected!", false) }
-
-    private val shakeDispatcher: (ShakeEvent) -> Unit =
-        withHaptic { event: ShakeEvent ->
-            when (event) {
-                ShakeEvent.Detected -> setResultText("Shake Detected!", false)
-                ShakeEvent.Stopped -> setResultText("Shake Stopped!", false)
-            }
-        }
-
-    private val flipDispatcher: (FlipEvent) -> Unit =
-        withHaptic { event: FlipEvent ->
-            when (event) {
-                FlipEvent.FaceUp -> setResultText("Face UP", false)
-                FlipEvent.FaceDown -> setResultText("Face Down", false)
-            }
-        }
-
-    private val lightDispatcher: (LightEvent) -> Unit =
-        withHaptic { event: LightEvent ->
-            when (event) {
-                LightEvent.Dark -> setResultText("Dark", false)
-                LightEvent.Light -> setResultText("Not Dark", false)
-            }
-        }
-
-    private val orientationDispatcher: (OrientationEvent) -> Unit =
-        withHaptic { event: OrientationEvent ->
-            val text =
-                when (event) {
-                    OrientationEvent.TopSideUp -> "Top Side UP"
-                    OrientationEvent.BottomSideUp -> "Bottom Side UP"
-                    OrientationEvent.LeftSideUp -> "Left Side UP"
-                    OrientationEvent.RightSideUp -> "Right Side UP"
-                }
-            setResultText(text, false)
-        }
-
-    private val proximityDispatcher: (ProximityEvent) -> Unit =
-        withHaptic { event: ProximityEvent ->
-            when (event) {
-                ProximityEvent.Near -> setResultText("Near", false)
-                ProximityEvent.Far -> setResultText("Far", false)
-            }
-        }
-
-    private val waveDispatcher: (WaveEvent) -> Unit = withHaptic { setResultText("Wave Detected!", false) }
-
-    private val movementDispatcher: (MovementEvent) -> Unit =
-        withHaptic { event: MovementEvent ->
-            when (event) {
-                is MovementEvent.Moved -> setResultText("Movement Detected!", false)
-                is MovementEvent.Stationary -> setResultText("Device Stationary!", false)
-            }
-        }
-
-    private val chopDispatcher: (ChopEvent) -> Unit = withHaptic { setResultText("Chop Detected!", false) }
-
-    private val wristTwistDispatcher: (WristTwistEvent) -> Unit =
-        withHaptic { setResultText("Wrist Twist Detected!", false) }
-
-    private val rotationAngleDispatcher: (RotationAngleEvent) -> Unit =
-        withHaptic { event: RotationAngleEvent ->
-            setResultText(
-                "Rotation in Axis Detected(deg):\nX=${event.angleInAxisX},\nY=${event.angleInAxisY},\nZ=${event.angleInAxisZ}",
-                true,
-            )
-        }
-
-    private val tiltDirectionDispatcher: (TiltDirectionEvent) -> Unit =
-        withHaptic { event: TiltDirectionEvent ->
-            val (label, axis) =
-                when (event) {
-                    is TiltDirectionEvent.AxisXTilt -> Pair(event.direction, "X")
-                    is TiltDirectionEvent.AxisYTilt -> Pair(event.direction, "Y")
-                    is TiltDirectionEvent.AxisZTilt -> Pair(event.direction, "Z")
-                }
-            val dir = if (label == TiltDirectionEvent.Direction.CLOCKWISE) "ClockWise" else "AntiClockWise"
-            setResultText("Tilt in $axis Axis: $dir", false)
-        }
-
-    private val stepDispatcher: (StepEvent) -> Unit =
-        withHaptic { event: StepEvent ->
-            val typeOfActivity =
-                when (event.activityType) {
-                    StepDetectorUtil.ACTIVITY_RUNNING -> "Running"
-                    StepDetectorUtil.ACTIVITY_WALKING -> "Walking"
-                    else -> "Still"
-                }
-            setResultText(
-                "Steps: ${event.steps}\nDistance: ${event.distanceInMeters} m\nActivity Type: $typeOfActivity",
-                true,
-            )
-        }
-
-    private val pickupDeviceDispatcher: (PickupDeviceEvent) -> Unit =
-        withHaptic { event: PickupDeviceEvent ->
-            when (event) {
-                PickupDeviceEvent.PickedUp -> setResultText("Device Picked up Detected!", false)
-                PickupDeviceEvent.PutDown -> setResultText("Device Put down Detected!", false)
-            }
-        }
-
-    private val scoopDispatcher: (ScoopEvent) -> Unit = withHaptic { setResultText("Scoop Gesture Detected!", false) }
-
-    private val tapOnBackDispatcher: (TapOnBackEvent) -> Unit =
-        withHaptic { setResultText("Tap On Back Detected!", false) }
-
-    private val edgeSwipeDispatcher: (EdgeSwipeEvent) -> Unit =
-        withHaptic { event ->
-            setResultText("Edge Swipe: ${event.edge}", false)
-        }
-
-    private val diagonalSwipeDispatcher: (DiagonalSwipeEvent) -> Unit =
-        withHaptic { event ->
-            setResultText("Diagonal Swipe: ${event.direction}", false)
-        }
-
-    private val turnOverDispatcher: (TurnOverEvent) -> Unit =
-        withHaptic { setResultText("Turn Over Detected!", false) }
-
-    private val nodGestureDispatcher: (NodGestureEvent) -> Unit =
-        withHaptic { setResultText("Nod Detected!", false) }
-
-    private val headShakeDispatcher: (HeadShakeEvent) -> Unit =
-        withHaptic { setResultText("Head Shake Detected!", false) }
-
-    private val deviceSpinDispatcher: (DeviceSpinEvent) -> Unit =
-        withHaptic { setResultText("Device Spin Detected!", false) }
-
-    private val raiseToEarDispatcher: (RaiseToEarEvent) -> Unit =
-        withHaptic { setResultText("Raised To Ear!", false) }
-
-    private val touchTypeDispatcher: (TouchTypeEvent) -> Unit =
-        { event ->
-            val text =
-                when (event) {
-                    is TouchTypeEvent.NTap -> "${event.count}-Tap"
-                    TouchTypeEvent.DoubleTap -> "Double Tap"
-                    TouchTypeEvent.LongPress -> "Long press"
-                    TouchTypeEvent.SingleTap -> "Single Tap"
-                    is TouchTypeEvent.Swipe -> swipeDirText(event.direction)
-                    is TouchTypeEvent.Scroll -> scrollDirText(event.direction)
-                    TouchTypeEvent.ThreeFingerSingleTap -> "Three Finger Tap"
-                    TouchTypeEvent.TwoFingerSingleTap -> "Two Finger Tap"
-                }
-            setTouchResult(text)
-        }
-
-    private val pinchScaleDispatcher: (PinchScaleEvent) -> Unit =
-        { event ->
-            setTouchResult(if (event.isScalingOut) "Scaling Out" else "Scaling In")
-        }
-
-    private fun swipeDirText(dir: TouchTypeEvent.Direction): String =
-        when (dir) {
-            TouchTypeEvent.Direction.UP -> "Swipe Up"
-            TouchTypeEvent.Direction.DOWN -> "Swipe Down"
-            TouchTypeEvent.Direction.LEFT -> "Swipe Left"
-            TouchTypeEvent.Direction.RIGHT -> "Swipe Right"
-            TouchTypeEvent.Direction.UP_RIGHT -> "Swipe Up-Right"
-            TouchTypeEvent.Direction.UP_LEFT -> "Swipe Up-Left"
-            TouchTypeEvent.Direction.DOWN_RIGHT -> "Swipe Down-Right"
-            TouchTypeEvent.Direction.DOWN_LEFT -> "Swipe Down-Left"
-        }
-
-    private fun scrollDirText(dir: TouchTypeEvent.Direction): String =
-        when (dir) {
-            TouchTypeEvent.Direction.UP -> "Scrolling Up"
-            TouchTypeEvent.Direction.DOWN -> "Scrolling Down"
-            TouchTypeEvent.Direction.LEFT -> "Scrolling Left"
-            TouchTypeEvent.Direction.RIGHT -> "Scrolling Right"
-            TouchTypeEvent.Direction.UP_RIGHT -> "Scrolling Up-Right"
-            TouchTypeEvent.Direction.UP_LEFT -> "Scrolling Up-Left"
-            TouchTypeEvent.Direction.DOWN_RIGHT -> "Scrolling Down-Right"
-            TouchTypeEvent.Direction.DOWN_LEFT -> "Scrolling Down-Left"
-        }
-
-    private fun setTouchResult(text: String) {
-        val active = selectedSensor
-        if (active == TOUCH_DETECTION || active == PINCH_SCALE) {
-            resultsMap[active] = text
-            clearJobs[active]?.cancel()
-            clearJobs[active] =
-                scope.launch {
-                    delay(3000)
-                    resultsMap.remove(active)
-                    clearJobs.remove(active)
-                }
-        }
-    }
-
-    val sensors =
+    val sensors: List<String> =
         listOf(
             SHAKE,
             FLIP,
@@ -350,7 +148,14 @@ internal class SenseySensorManager(
             PINCH_SCALE,
             EDGE_SWIPE,
             DIAGONAL_SWIPE,
+            LONG_PRESS_DRAG,
+            TWO_FINGER_SWIPE,
+            CORNER_SWIPE,
         )
+
+    fun getResult(sensor: String): String = resultsMap[sensor] ?: ""
+
+    // ── Sensor selection lifecycle ──────────────────────────────────────
 
     fun onSensorSelected(
         sensor: String,
@@ -359,20 +164,17 @@ internal class SenseySensorManager(
     ) {
         val previous = selectedSensor
         if (previous == sensor) {
-            handleStartDetector(sensor, start = false)
-            selectedSensor = null
+            stopDetector(sensor)
             return
         }
-        if (previous != null) {
-            handleStartDetector(previous, start = false)
-        }
+        if (previous != null) stopDetector(previous)
         if ((sensor == SOUND_LEVEL || sensor == CLAP) && !hasRecordAudioPermission) {
             pendingSensor = sensor
             onPermissionNeeded()
             return
         }
         selectedSensor = sensor
-        handleStartDetector(sensor, start = true)
+        startDetector(sensor)
     }
 
     fun startAfterPermissionGranted() {
@@ -380,7 +182,7 @@ internal class SenseySensorManager(
         if (sensey == null) return
         pendingSensor = null
         selectedSensor = sensor
-        handleStartDetector(sensor, start = true)
+        startDetector(sensor)
     }
 
     fun clearPendingPermission() {
@@ -394,24 +196,27 @@ internal class SenseySensorManager(
         selectedSensor = null
     }
 
-    private fun handleStartDetector(
-        sensor: String,
-        start: Boolean,
-    ) {
-        if (!start) {
-            currentPlugin?.let { sensey?.unregister(it) }
-            currentPlugin = null
-            resultsMap.remove(sensor)
-            return
-        }
+    fun cancel() {
+        scope.cancel()
+    }
+
+    // ── Detector lifecycle ──────────────────────────────────────────────
+
+    private fun startDetector(sensor: String) {
         if (!isSensorAvailable(sensor)) {
             selectedSensor = null
             onSensorUnavailable(sensor)
             return
         }
-        val plugin: GesturePlugin = createPlugin(sensor)
+        val plugin = createPlugin(sensor)
         sensey?.register(plugin)
         currentPlugin = plugin
+    }
+
+    private fun stopDetector(sensor: String) {
+        currentPlugin?.let { sensey?.unregister(it) }
+        currentPlugin = null
+        resultsMap.remove(sensor)
     }
 
     private fun isSensorAvailable(sensor: String): Boolean {
@@ -420,19 +225,21 @@ internal class SenseySensorManager(
         return manager?.getDefaultSensor(sensorType) != null
     }
 
+    // ── Sensor type mapping ─────────────────────────────────────────────
+
     private fun sensorTypeFor(sensor: String): Int? =
         when (sensor) {
-            SHAKE, FLIP, MOVEMENT, SCOOP, PICKUP_DEVICE, TAP_ON_BACK -> Sensor.TYPE_ACCELEROMETER
+            SHAKE, FLIP, MOVEMENT, SCOOP, PICKUP_DEVICE, TAP_ON_BACK, ORIENTATION -> Sensor.TYPE_ACCELEROMETER
             CHOP, WRIST_TWIST -> Sensor.TYPE_LINEAR_ACCELERATION
             LIGHT -> Sensor.TYPE_LIGHT
-            PROXIMITY, WAVE -> Sensor.TYPE_PROXIMITY
+            PROXIMITY, WAVE, RAISE_TO_EAR -> Sensor.TYPE_PROXIMITY
             TURN_OVER, DEVICE_SPIN, TILT_DIRECTION, NOD_GESTURE, HEAD_SHAKE -> Sensor.TYPE_GYROSCOPE
             STEP -> Sensor.TYPE_STEP_COUNTER
             ROTATION_ANGLE -> Sensor.TYPE_ROTATION_VECTOR
-            ORIENTATION -> Sensor.TYPE_ACCELEROMETER
-            RAISE_TO_EAR -> Sensor.TYPE_PROXIMITY
             else -> null
         }
+
+    // ── Plugin creation ─────────────────────────────────────────────────
 
     private fun createPlugin(sensor: String): GesturePlugin =
         when (sensor) {
@@ -458,39 +265,286 @@ internal class SenseySensorManager(
             CLAP -> clapPlugin(activity, dispatchEvents = clapDispatcher, requiredClaps = 2)
             NOD_GESTURE -> nodGesturePlugin(dispatcher = nodGestureDispatcher)
             HEAD_SHAKE -> headShakePlugin(dispatcher = headShakeDispatcher)
-            TOUCH_DETECTION -> touchTypePlugin(activity, dispatcher = touchTypeDispatcher)
+            TOUCH_DETECTION -> touchPlugin(activity, dispatcher = touchDispatcher)
             PINCH_SCALE -> pinchScalePlugin(activity, dispatcher = pinchScaleDispatcher)
+            EDGE_SWIPE -> edgeSwipePlugin(activity, dispatcher = edgeSwipeDispatcher)
             DIAGONAL_SWIPE -> diagonalSwipePlugin(activity, dispatcher = diagonalSwipeDispatcher)
-            EDGE_SWIPE ->
-                edgeSwipePlugin(
-                    activity,
-                    edgeThresholdDp = 48.dp,
-                    enabledEdges = setOf(Edge.LEFT, Edge.RIGHT, Edge.TOP, Edge.BOTTOM),
-                    dispatcher = edgeSwipeDispatcher,
-                )
-
+            LONG_PRESS_DRAG -> longPressDragPlugin(activity, dispatcher = longPressDragDispatcher)
+            TWO_FINGER_SWIPE -> twoFingerSwipePlugin(activity, dispatcher = twoFingerSwipeDispatcher)
+            CORNER_SWIPE -> cornerSwipePlugin(activity, dispatcher = cornerSwipeDispatcher)
             else -> error("Unknown sensor: $sensor")
         }
 
-    fun cancel() {
-        scope.cancel()
-    }
+    // ── Haptic helper ───────────────────────────────────────────────────
 
-    private val clearJobs = mutableMapOf<String, kotlinx.coroutines.Job>()
+    private fun <T> withHaptic(dispatcher: (T) -> Unit): (T) -> Unit =
+        { event ->
+            HapticUtil.quickTap(activity)
+            dispatcher(event)
+        }
 
-    private fun setResultText(
-        text: String,
-        realtime: Boolean,
-    ) {
+    // ── Dispatchers (event → text) ───────────────────────────────────────
+
+    private val soundLevelDispatcher: (SoundLevelEvent) -> Unit =
+        { setResultText("${DecimalFormat("##.##").format(it.level.toDouble())} dB") }
+
+    private val clapDispatcher: (ClapEvent) -> Unit =
+        withHaptic { setResultText("Clap Detected!") }
+
+    private val shakeDispatcher: (ShakeEvent) -> Unit =
+        withHaptic {
+            setResultText(
+                when (it) {
+                    ShakeEvent.Detected -> "Shake Detected!"
+                    ShakeEvent.Stopped -> "Shake Stopped!"
+                },
+            )
+        }
+
+    private val flipDispatcher: (FlipEvent) -> Unit =
+        withHaptic {
+            setResultText(
+                when (it) {
+                    FlipEvent.FaceUp -> "Face UP"
+                    FlipEvent.FaceDown -> "Face Down"
+                },
+            )
+        }
+
+    private val lightDispatcher: (LightEvent) -> Unit =
+        withHaptic {
+            setResultText(
+                when (it) {
+                    LightEvent.Dark -> "Dark"
+                    LightEvent.Light -> "Not Dark"
+                },
+            )
+        }
+
+    private val orientationDispatcher: (OrientationEvent) -> Unit =
+        withHaptic {
+            setResultText(
+                when (it) {
+                    OrientationEvent.TopSideUp -> "Top Side UP"
+                    OrientationEvent.BottomSideUp -> "Bottom Side UP"
+                    OrientationEvent.LeftSideUp -> "Left Side UP"
+                    OrientationEvent.RightSideUp -> "Right Side UP"
+                },
+            )
+        }
+
+    private val proximityDispatcher: (ProximityEvent) -> Unit =
+        withHaptic {
+            setResultText(
+                when (it) {
+                    ProximityEvent.Near -> "Near"
+                    ProximityEvent.Far -> "Far"
+                },
+            )
+        }
+
+    private val waveDispatcher: (WaveEvent) -> Unit =
+        withHaptic { setResultText("Wave Detected!") }
+
+    private val movementDispatcher: (MovementEvent) -> Unit =
+        withHaptic {
+            setResultText(
+                when (it) {
+                    is MovementEvent.Moved -> "Movement Detected!"
+                    is MovementEvent.Stationary -> "Device Stationary!"
+                },
+            )
+        }
+
+    private val chopDispatcher: (ChopEvent) -> Unit =
+        withHaptic { setResultText("Chop Detected!") }
+
+    private val wristTwistDispatcher: (WristTwistEvent) -> Unit =
+        withHaptic { setResultText("Wrist Twist Detected!") }
+
+    private val rotationAngleDispatcher: (RotationAngleEvent) -> Unit =
+        withHaptic {
+            setResultText(
+                "Rotation in Axis Detected(deg):\nX=${it.angleInAxisX},\nY=${it.angleInAxisY},\nZ=${it.angleInAxisZ}",
+            )
+        }
+
+    private val tiltDirectionDispatcher: (TiltDirectionEvent) -> Unit =
+        withHaptic {
+            val (label, axis) =
+                when (it) {
+                    is TiltDirectionEvent.AxisXTilt -> Pair(it.direction, "X")
+                    is TiltDirectionEvent.AxisYTilt -> Pair(it.direction, "Y")
+                    is TiltDirectionEvent.AxisZTilt -> Pair(it.direction, "Z")
+                }
+            val dir = if (label == TiltDirectionEvent.Direction.CLOCKWISE) "ClockWise" else "AntiClockWise"
+            setResultText("Tilt in $axis Axis: $dir")
+        }
+
+    private val stepDispatcher: (StepEvent) -> Unit =
+        withHaptic {
+            val activity =
+                when (it.activityType) {
+                    StepDetectorUtil.ACTIVITY_RUNNING -> "Running"
+                    StepDetectorUtil.ACTIVITY_WALKING -> "Walking"
+                    else -> "Still"
+                }
+            setResultText("Steps: ${it.steps}\nDistance: ${it.distanceInMeters} m\nActivity Type: $activity")
+        }
+
+    private val pickupDeviceDispatcher: (PickupDeviceEvent) -> Unit =
+        withHaptic {
+            setResultText(
+                when (it) {
+                    PickupDeviceEvent.PickedUp -> "Device Picked up Detected!"
+                    PickupDeviceEvent.PutDown -> "Device Put down Detected!"
+                },
+            )
+        }
+
+    private val scoopDispatcher: (ScoopEvent) -> Unit =
+        withHaptic { setResultText("Scoop Gesture Detected!") }
+
+    private val tapOnBackDispatcher: (TapOnBackEvent) -> Unit =
+        withHaptic { setResultText("Tap On Back Detected!") }
+
+    private val edgeSwipeDispatcher: (TouchEvent) -> Unit =
+        withHaptic {
+            if (it is TouchEvent.Swipe) {
+                val edge = (it.origin as TouchEvent.SwipeOrigin.Edge).type
+                setResultText("Edge Swipe: $edge → ${it.direction}")
+            }
+        }
+
+    private val diagonalSwipeDispatcher: (TouchEvent) -> Unit =
+        withHaptic {
+            val direction =
+                when (it) {
+                    is TouchEvent.Swipe -> it.direction
+                    is TouchEvent.Scroll -> it.direction
+                    else -> null
+                }
+            if (direction != null) {
+                setResultText("Diagonal Swipe: $direction")
+            }
+        }
+
+    private val turnOverDispatcher: (TurnOverEvent) -> Unit =
+        withHaptic { setResultText("Turn Over Detected!") }
+
+    private val nodGestureDispatcher: (NodGestureEvent) -> Unit =
+        withHaptic { setResultText("Nod Detected!") }
+
+    private val headShakeDispatcher: (HeadShakeEvent) -> Unit =
+        withHaptic { setResultText("Head Shake Detected!") }
+
+    private val deviceSpinDispatcher: (DeviceSpinEvent) -> Unit =
+        withHaptic { setResultText("Device Spin Detected!") }
+
+    private val raiseToEarDispatcher: (RaiseToEarEvent) -> Unit =
+        withHaptic { setResultText("Raised To Ear!") }
+
+    private val longPressDragDispatcher: (TouchEvent) -> Unit =
+        withHaptic {
+            if (it is TouchEvent.LongPressDrag) {
+                setResultText("LongPress Drag: ${it.direction}")
+            }
+        }
+
+    private val twoFingerSwipeDispatcher: (TouchEvent) -> Unit =
+        withHaptic {
+            if (it is TouchEvent.Swipe) {
+                setResultText("Two-Finger Swipe: ${it.direction}")
+            }
+        }
+
+    private val cornerSwipeDispatcher: (TouchEvent) -> Unit =
+        withHaptic {
+            if (it is TouchEvent.Swipe) {
+                val corner = (it.origin as TouchEvent.SwipeOrigin.Corner).type
+                setResultText("Corner Swipe: $corner → ${it.direction}")
+            }
+        }
+
+    private val touchDispatcher: (TouchEvent) -> Unit =
+        withHaptic { event ->
+            val text =
+                when (event) {
+                    is TouchEvent.Tap.NTap -> "${event.count}-Tap"
+                    is TouchEvent.Tap.Double -> "Double Tap"
+                    is TouchEvent.LongPress -> "Long press"
+                    is TouchEvent.Tap.Single -> "Single Tap"
+                    is TouchEvent.Swipe -> swipeDirText(event.direction)
+                    is TouchEvent.Scroll -> scrollDirText(event.direction)
+                    else -> null
+                }
+            if (text != null) setTouchResult(text)
+        }
+
+    private val pinchScaleDispatcher: (TouchEvent) -> Unit =
+        withHaptic {
+            if (it is TouchEvent.PinchScale) {
+                setTouchResult(
+                    if (it.isScalingOut) "Scaling Out" else "Scaling In",
+                )
+            }
+        }
+
+    // ── Direction helpers ────────────────────────────────────────────────
+
+    private fun swipeDirText(dir: TouchEvent.Direction): String =
+        when (dir) {
+            TouchEvent.Direction.UP -> "Swipe Up"
+            TouchEvent.Direction.DOWN -> "Swipe Down"
+            TouchEvent.Direction.LEFT -> "Swipe Left"
+            TouchEvent.Direction.RIGHT -> "Swipe Right"
+            TouchEvent.Direction.UP_RIGHT -> "Swipe Up-Right"
+            TouchEvent.Direction.UP_LEFT -> "Swipe Up-Left"
+            TouchEvent.Direction.DOWN_RIGHT -> "Swipe Down-Right"
+            TouchEvent.Direction.DOWN_LEFT -> "Swipe Down-Left"
+        }
+
+    private fun scrollDirText(dir: TouchEvent.Direction): String =
+        when (dir) {
+            TouchEvent.Direction.UP -> "Scrolling Up"
+            TouchEvent.Direction.DOWN -> "Scrolling Down"
+            TouchEvent.Direction.LEFT -> "Scrolling Left"
+            TouchEvent.Direction.RIGHT -> "Scrolling Right"
+            TouchEvent.Direction.UP_RIGHT -> "Scrolling Up-Right"
+            TouchEvent.Direction.UP_LEFT -> "Scrolling Up-Left"
+            TouchEvent.Direction.DOWN_RIGHT -> "Scrolling Down-Right"
+            TouchEvent.Direction.DOWN_LEFT -> "Scrolling Down-Left"
+        }
+
+    // ── Result display ──────────────────────────────────────────────────
+
+    private fun setResultText(text: String) {
         val sensor = selectedSensor ?: return
         resultsMap[sensor] = text
+        onSensorResult(sensor, text)
         if (BuildConfig.DEBUG) Log.d(logTag, text)
         clearJobs[sensor]?.cancel()
         clearJobs[sensor] =
             scope.launch {
                 delay(2000L)
                 resultsMap.remove(sensor)
+                onSensorResult(sensor, "")
                 clearJobs.remove(sensor)
+            }
+    }
+
+    private fun setTouchResult(text: String) {
+        val active = selectedSensor
+        if (active != TOUCH_DETECTION && active != PINCH_SCALE) return
+        resultsMap[active] = text
+        onSensorResult(active, text)
+        clearJobs[active]?.cancel()
+        clearJobs[active] =
+            scope.launch {
+                delay(3000L)
+                resultsMap.remove(active)
+                onSensorResult(active, "")
+                clearJobs.remove(active)
             }
     }
 }
